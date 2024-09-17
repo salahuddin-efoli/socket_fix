@@ -1,0 +1,20 @@
+api_version = "2024-01"
+
+[[extensions]]
+handle = "price-discount"
+name = "Price discount"
+description = "Set the discount price manually for a product, which can be done on a single variant or combination of multiple variants of the same product."
+type = "function"
+
+  [[extensions.targeting]]
+  target = "purchase.product-discount.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"
+
+  [extensions.ui.paths]
+  create = "/app/price-discount/:functionId/new"
+  details = "/app/price-discount/:functionId/:id"

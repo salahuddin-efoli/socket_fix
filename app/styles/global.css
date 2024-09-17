@@ -1,0 +1,55 @@
+.flex {
+    display: flex;
+}
+.justify-space-between {
+    justify-content: space-between;
+}
+.full-height {
+    height: 100%;
+}
+.full-width {
+    width: 100%;
+}
+.packagePlansTableCellFirst {
+    white-space: normal;
+    min-width: 12rem;
+    border: 1px solid rgba(142, 11, 33, 1);
+    border-top: 0;
+}
+.packagePlansTableCell {
+    border: 1px solid rgba(142, 11, 33, 1);
+}
+.packagePlansTableCellLast {
+    border: 1px solid rgba(142, 11, 33, 1);
+    border-bottom: 0;
+}
+@media only screen and (max-width: 47.5rem) {
+  .small-device-summary{
+        position:fixed;
+        top: 50%;
+        display: block;
+        right: 0%;
+    }
+    .summary{
+        width: rem;
+        position: fixed;
+        top: 10%;
+        right: 0;
+    }
+    .small-device-summary button{
+        border-top-right-radius: 0%;
+        border-bottom-right-radius: 0%;
+    }
+    .large-device-summary{
+        display: none;
+    }
+}
+@media only screen and (min-width: 47.5rem) {
+    .small-device-summary{
+        display: none;
+    }
+    
+}
+
+
+

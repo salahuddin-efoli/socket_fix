@@ -1,0 +1,342 @@
+<style>
+    table {
+        width: 100%;
+    }
+    th, td {
+        text-align: left;
+    }
+</style>
+<div id="dr-DiscountElement"></div>
+
+<script>
+    /**
+     * --------------------------------------------------------------------------------------
+     * * Detect if quantity or variant changes
+     * * Currently there is no built-in method to detect the quantity or variant change
+     * * So, we are defining our own method to detect quantity or variant change
+     * --------------------------------------------------------------------------------------
+    */
+
+    let discountsWithHighestAmounts = [];
+    let currentVariant = {};
+    let originalUnitPrice = 0;
+
+    /**
+     * TODO: First take the initial Quantity initial URL for future comparison reference
+     * TODO: Then add an event listener on the document
+     * TODO: If the change event target name is "quantity" and className is "quantity__input" that means, this change is quantity change and get the new quantity
+     * TODO: Then take the new/current URL
+     * TODO: Then get the variant ID from the search param of current URL
+     * TODO: Assigns the value of variant ID to current URL if variant ID is not null, effectively replacing current URL with the variant URL if it exists
+     * TODO: Now check if 
+     * * 1. Current Quantity is different from the Quantity URL
+     * * 2. Current URL is not null and if it is different from the initial URL
+     * TODO: If any one or both of these conditions are met
+     * * Here we have new quantity or variant ID
+     * TODO: Assign the current values to initial values
+     * TODO: Take this Quantity and ID to update the discount info for this variant
+    */
+    let currentQuantity = 1;
+    let initialQuantity = 1;
+    let currentVariantId = "";
+    let initialUrl = document.URL;
+
+    document.addEventListener('change', function(event) {
+        if(event.target.name == "quantity" && event.target.className == "quantity__input") {
+            currentQuantity = event.target.value;
+            initialQuantity = currentQuantity;
+            setUnitPrice();
+        }
+
+        let currentPageUrl = document.URL;
+
+        let url = new URL(currentPageUrl);
+        let isVariantUrl = url.searchParams.get("variant");
+
+        currentPageUrl = isVariantUrl ? currentPageUrl : isVariantUrl;
+
+        if(currentPageUrl && initialUrl != currentPageUrl) {
+            initialUrl = currentPageUrl;
+            currentVariantId = isVariantUrl;
+            fetchProducts();
+        }
+    });
+
+    fetchProducts();
+    async function fetchProducts() {
+        // Make an request to fetch data from a REST API endpoint
+        const variant_id = currentVariantId || {{ block.settings.product.selected_or_first_available_variant.id | json }};
+        const product_quantity = currentQuantity;
+        const product_tags = {{ block.settings.product.tags | json }};
+        const product_vendor = {{ block.settings.product.vendor | json }};
+        const product_type = {{ block.settings.product.type | json }};
+        const product_collections = {{ block.settings.product.collections | json }};
+        const product_collection_ids = product_collections.map(collection => collection.id);
+        const money_format = {{ shop.money_format | json }};
+        const currencyRate = parseFloat(window.Shopify.currency.rate);
+
+        const apiUrl = `/apps/discountray/api/discount-info`;
+        try {
+            let data = new FormData();
+            data.append('variant_id', variant_id);
+            data.append('product_quantity', product_quantity);
+            data.append('product_tags', JSON.stringify(product_tags));
+            data.append('product_vendor', product_vendor);
+            data.append('product_type', product_type);
+            data.append('product_collection_ids', JSON.stringify(product_collection_ids));
+
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", apiUrl, true);
+            xhr.onload = function () {
+                // do something to response
+                const responseData = JSON.parse(xhr.responseText);
+                
+                document.getElementById("dr-DiscountElement").replaceChildren();
+                if(responseData?.data?.length > 0) {
+                    // Get the shop settings data
+                    const settingsData = responseData.settings;
+
+                    // Get the unit price of current variant
+                    const variants = {{ block.settings.product.variants | json }};
+                    currentVariant = variants.find(v => v.id == variant_id);
+                    
+                    originalUnitPrice = currentVariant.price / 100;
+                    
+                    /**
+                     * * Step 1: Convert all discounts into percentage
+                     *  TODO: We iterate over each discount object using map().
+                     *  TODO: For each discount object, we check if its type is "PRICE_DISCOUNT" or "QUANTITY_DISCOUNT".
+                     *  TODO: If the type is "PRICE_DISCOUNT"
+                     *       1. In the strorefront users can change their currency to any currency, and we have to adjust it
+                     *       2. First we can calculate the "adjusted new unit price" by multiplying the "discount unit price" with "currency conversion rate"
+                     *       3. Then, we get the "adjusted discount amount" by finding the difference between the "original unit price" and the "adjusted new unit price"
+                     *       4. Now, we get the discount percentage by dividing the "adjusted discount amount" by the "original unit price" and then multiplying by 100.
+                     *  TODO: If the type is "QUANTITY_DISCOUNT"
+                     *       1. We check if the discount amount is in percentage or currency
+                     *       2. If it's a percentage, we directly use the amount as the discount percentage.
+                     *       3. Else,
+                     *          a. First we calculate the "adjusted discount amount" by multiplying the "discount amount" with "currency conversion rate"
+                     *          b. Then, we get the discount percentage by dividing the "adjusted discount amount" by the original unit price and then multiplying by 100.
+                     *  TODO: Finally, we return an array of objects containing the discount and the corresponding discount fixed amount and percentage.
+                    */
+
+                    const discountsAsPercentage = responseData.data.map(discount => {
+                        let discountInActual = 0;
+                        let discountInFixedAmount = 0;
+                        let discountInPercentage = 0;
+                        if (discount.type === "PRICE_DISCOUNT") {
+                            const newUnitPrice = parseFloat(discount.price) * currencyRate;
+                            discountInFixedAmount = originalUnitPrice - newUnitPrice;
+                            discountInPercentage = (discountInFixedAmount / originalUnitPrice) * 100;
+                            discountInActual = money_format.replace("\{\{amount\}\}", discountInFixedAmount);
+                        }
+                        else if (discount.type === "QUANTITY_DISCOUNT") {
+                            discountAmount = parseFloat(discount.amount);
+                            if (discount.percent_or_currency === "%") {
+                                discountInPercentage = discountAmount;
+                                discountInFixedAmount = (originalUnitPrice * discountInPercentage) / 100;
+                                discountInActual = discountInPercentage + "%";
+                            }
+                            else {
+                                discountInFixedAmount = parseFloat(discountAmount) * currencyRate;
+                                discountInPercentage = (discountInFixedAmount / originalUnitPrice) * 100;
+                                discountInActual = money_format.replace("\{\{amount\}\}", discountInFixedAmount);
+                            }
+                        }
+                        return { ...discount, quantity: parseInt(discount.quantity), fixedAmount: parseFloat(discountInFixedAmount.toFixed(2)), percentage: parseFloat(discountInPercentage.toFixed(1)), actual: discountInActual};
+                    });
+
+                    /**
+                     * * Step 2: Find the highest discount percentage for each quantity
+                     * TODO: We use reduce() to iterate over the array of discounts and keep track of the highest amount for each quantity in an accumulator object (acc).
+                     * TODO: For each discount, we check if there is already a discount with the same quantity in the accumulator. If not, or if the current discount has a higher amount, we replace the existing discount with the current one.
+                     * TODO: After processing all discounts, we convert the accumulator object back to an array using Object.values() to get an array containing only the objects with the highest amount for each quantity.
+                    */
+
+                    const highestAmounts = discountsAsPercentage.reduce((acc, discount) => {
+                        if (!acc[discount.quantity] || acc[discount.quantity].percentage < discount.percentage) {
+                            acc[discount.quantity] = discount;
+                        }
+                        return acc;
+                    }, {});
+
+                    // Step 2: Convert the object of highest amounts back to an array
+                    discountsWithHighestAmounts = Object.values(highestAmounts);
+
+                    // Check discount info layout
+                    if(settingsData.layout == "table_view") {
+                        let table = document.createElement('table');
+                        table.className = "dr-discountInfoTable";
+                        let thead = document.createElement('thead');
+                        let tbody = document.createElement('tbody');
+        
+                        // Create table header with fixed columns
+                        let headerRow = document.createElement('tr');
+        
+                        let quantityHeader = document.createElement('th');
+                        quantityHeader.textContent = settingsData.quantity_column_header || "Quantity";
+                        headerRow.appendChild(quantityHeader);
+        
+                        let discountPercentHeader = document.createElement('th');
+                        discountPercentHeader.textContent = settingsData.discount_column_header || "Discount";
+                        headerRow.appendChild(discountPercentHeader);
+        
+                        thead.appendChild(headerRow);
+    
+                        // Iterate over array elements
+                        discountsWithHighestAmounts.forEach(function(item) {
+                            let row = document.createElement('tr');
+    
+                            // Quantity column
+                            let quantityCell = document.createElement('td');
+                            // quantityCell.textContent = item.quantity + " or more";
+                            quantityCell.innerHTML = settingsData.quantity_column_text.replace("[QTY]", `<span class="dr-discountInfoTableTdQuantityValue">${item.quantity}</span>`);
+                            row.appendChild(quantityCell);
+
+    
+                            // Discount amount column
+                            let discountPercentCell = document.createElement('td');
+                            if(settingsData.show_discount_value == "show_as_set") {
+                                discountPercentCell.innerHTML = settingsData.discount_column_text.replace("[DISCOUNT]", `<span class="dr-discountInfoTableTdDiscountValue">${item.actual}</span>`);
+                                // discountPercentCell.textContent = item.actual;
+                            }
+                            else if(settingsData.show_discount_value == "show_as_amount") {
+                                // Formatting amount to proper currency
+                                const formattedAmount = money_format.replace("\{\{amount\}\}", item.fixedAmount);
+                                discountPercentCell.innerHTML = settingsData.discount_column_text.replace("[DISCOUNT]", `<span class="dr-discountInfoTableTdDiscountValue">${formattedAmount}</span>`);
+                                // discountPercentCell.textContent = formattedAmount;
+                            }
+                            else if(settingsData.show_discount_value == "show_as_percentage") {
+                                let roundedPercentage = Math.round(parseFloat(item.percentage) * 100) / 100;
+                                discountPercentCell.innerHTML = settingsData.discount_column_text.replace("[DISCOUNT]", `<span class="dr-discountInfoTableTdDiscountValue">${roundedPercentage}%</span>`);
+                                // discountPercentCell.textContent = roundedPercentage + "%";
+                            }
+                            row.appendChild(discountPercentCell);
+
+                            tbody.appendChild(row);
+                        });
+
+                        table.appendChild(thead);
+                        table.appendChild(tbody);
+
+                        document.getElementById("dr-DiscountElement").appendChild(table);
+                    }
+                    else {
+                        let div = document.createElement('div');
+                        div.className = "dr-discountInfoList";
+                        // Iterate over array elements
+                        discountsWithHighestAmounts.forEach(function(item, index) {
+                            let line = document.createElement('div');
+                            line.className = "dr-discountInfoListItem";
+                            const roundedPercentage = Math.round(parseFloat(item.percentage) * 100) / 100;
+
+                            // Formatting amount to proper currency
+                            const formattedAmount = money_format.replace("\{\{amount\}\}", item.fixedAmount);
+
+                            if(settingsData.show_discount_value == "show_as_set") {
+                                // Apply styles to discount info
+                                const textWithStyle = settingsData.list_text
+                                                    .replace("[QTY]", `<span class="dr-discountInfoListItemQuantity">${item.quantity}</span>`)
+                                                    .replace("[DISCOUNT]", `<span class="dr-discountInfoListItemDiscount">${item.actual}</span>`);
+                                line.innerHTML= textWithStyle;
+                            }
+                            else if(settingsData.show_discount_value == "show_as_amount") {
+                                // Apply styles to discount info
+                                const textWithStyle = settingsData.list_text
+                                                    .replace("[QTY]", `<span class="dr-discountInfoListItemQuantity">${item.quantity}</span>`)
+                                                    .replace("[DISCOUNT]", `<span class="dr-discountInfoListItemDiscount">${formattedAmount}</span>`);
+                                line.innerHTML= textWithStyle;
+                            }
+                            else if(settingsData.show_discount_value == "show_as_percentage") {
+                                // Apply styles to discount info
+                                const textWithStyle = settingsData.list_text
+                                                    .replace("[QTY]", `<span class="dr-discountInfoListItemQuantity">${item.quantity}</span>`)
+                                                    .replace("[DISCOUNT]", `<span class="dr-discountInfoListItemDiscount">${roundedPercentage}%</span>`);
+
+                                line.innerHTML= textWithStyle;
+                            }
+
+                            div.appendChild(line);
+                        });
+
+                        document.getElementById("dr-DiscountElement").appendChild(div);
+                    }
+
+                    if (document.getElementById("dr-DiscountElement")) {
+                        var style = document.createElement("style");
+                        style.textContent = settingsData.css_style;
+                        document.head.appendChild(style);
+                    }
+
+                    setUnitPrice();
+                }
+            };
+            xhr.send(data);
+        } catch (error) {
+            // 
+        }
+    }
+
+    async function setUnitPrice() {
+        const money_with_currency_format = {{ shop.money_with_currency_format | json }};
+
+        // First sort the discount array by highest discount ammount
+        let sortedDiscountsWithHighestAmounts = discountsWithHighestAmounts.sort((a, b) => b.fixedAmount - a.fixedAmount);
+
+        // Get the regular and sale price element to update unit price
+        const salePriceElement = document.querySelector('.price-item--sale');
+        const regularPriceElement = document.querySelector('.price-item--regular');
+
+        // Keep the original unit price
+        let originalUnitPriceWithCurrency = money_with_currency_format.replace("\{\{amount\}\}", originalUnitPrice);
+        /**
+         * TODO: Loop through discount array and find proper discount that supposed to be applied
+         * TODO: If current quantity satisfies any discount quantity then,
+         * TODO:    Get the discounted price by subtracting discount amount from unit price
+         * TODO:    Format discounted unit price
+         * TODO:    Display discounted unit price for the user to see
+         * TODO: Else not,
+         * TODO:    Bring back the original unit price
+        */
+        for (let index = 0; index < sortedDiscountsWithHighestAmounts.length; index++) {
+            let discount = sortedDiscountsWithHighestAmounts[index];
+            if(currentQuantity >= discount.quantity) {
+                let discountedPrice = originalUnitPrice - discount.fixedAmount;
+                let formattedAmountWithCurrency = money_with_currency_format.replace("\{\{amount\}\}", discountedPrice);
+
+                // Update the sale price
+                if (salePriceElement) {
+                    salePriceElement.innerText = formattedAmountWithCurrency;
+                }
+                // Update the regular price
+                if (regularPriceElement) {
+                    regularPriceElement.innerText = formattedAmountWithCurrency;
+                }
+                break;
+            }
+            else {
+                // Update the sale price
+                if (salePriceElement) {
+                    salePriceElement.innerText = originalUnitPriceWithCurrency;
+                }
+                // Update the regular price
+                if (regularPriceElement) {
+                    regularPriceElement.innerText = originalUnitPriceWithCurrency;
+                }
+            }
+        }
+    }
+</script>
+
+{% schema %}
+{
+    "name": "Show discounts",
+    "target": "section",
+    "enabled_on": {
+        "templates": ["product"]
+    },
+    "settings": [
+        { "type": "product", "id": "product", "label": "product", "autofill": true }
+    ]
+}
+{% endschema %}

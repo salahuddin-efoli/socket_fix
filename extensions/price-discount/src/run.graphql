@@ -1,0 +1,28 @@
+query RunInput {
+    cart {
+        buyerIdentity {
+            email
+        }
+        lines {
+            cost {
+                amountPerQuantity {
+                    amount
+                    currencyCode
+                }
+            }
+            quantity
+            merchandise {
+                __typename
+                ...on ProductVariant {
+                    id
+                }
+            }
+        }
+    }
+    presentmentCurrencyRate
+    discountNode {
+        metafield(namespace: "$app:dr-price-discount", key: "dr-price-discount-function-configuration") {
+            value
+        }
+    }
+}

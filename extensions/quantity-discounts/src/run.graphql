@@ -1,0 +1,29 @@
+query RunInput($selectedCollectionIds: [ID!], $tags: [String!], $excludetags: [String!]) {
+  cart{
+    buyerIdentity {
+        email
+    }
+    lines {
+      quantity
+      merchandise {
+        __typename
+        ...on ProductVariant {
+          id
+          product {
+            vendor
+            productType
+            inAnyCollection(ids: $selectedCollectionIds)
+            hasAnyTag(tags: $tags)
+            hasAnyExcludeTag: hasAnyTag(tags: $excludetags) # Alias the field here
+          }
+        }
+      }
+    }
+  }
+  presentmentCurrencyRate
+  discountNode {
+    metafield(namespace: "$app:quantity-discount", key: "dr-quantity-discount-function-configuration") {
+      value
+    }
+  }
+}

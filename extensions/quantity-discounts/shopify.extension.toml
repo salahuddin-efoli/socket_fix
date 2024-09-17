@@ -1,0 +1,30 @@
+api_version = "2024-01"
+
+[[extensions]]
+handle = "quantity-discount"
+name = "Quantity discount"
+description = "Apply quantity-based discount for a product, which can be done on a single variant or combination of multiple variants of the same product."
+type = "function"
+
+  [[extensions.targeting]]
+  target = "purchase.product-discount.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"
+
+  [extensions.ui]
+  enable_create = true
+  
+  [extensions.ui.paths]
+  create = "/app/quantity-discount/:functionId/new"
+  details = "/app/quantity-discount/:functionId/:id"
+
+  [extensions.input.variables]
+  namespace = "$app:quantity-discount"
+  key = "dr-quantity-discount-function-configuration"
+  ids = "$selectedCollectionIds"
+  tags= "$tags"
+  excludetags= "$excludetags"

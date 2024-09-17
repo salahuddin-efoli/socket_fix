@@ -1,0 +1,316 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "mysql"
+    url      = env("VITE_DATABASE_URL")
+}
+
+enum DiscountType {
+    PRICE_DISCOUNT
+    QUANTITY_DISCOUNT
+}
+
+enum PlanType {
+    EVERY_30_DAYS
+    ANNUAL
+}
+
+enum PaymentStatus {
+    PENDING
+    ACCEPTED
+}
+
+enum DiscountStatus {
+    ACTIVE
+    EXPIRED
+    SCHEDULED
+}
+
+enum AgentRole {
+    ADMIN
+    AGENT
+}
+enum AgentStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum TicketStatus {
+    PENDING
+    OPEN
+    SOLVED
+    CANCELED
+}
+
+enum TicketReplyFrom {
+    MERCHANT
+    SUPPORT
+}
+
+enum ActiveStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum FeatureRequestStatus {
+    PENDING
+    APPROVED
+    ARCHIVED
+}
+
+enum BannerTone {
+    SUCCESS
+    INFO
+    WARNING
+    CRITICAL
+}
+
+enum TicketReplyStatus {
+    PUBLISHED
+    UNPUBLISHED
+    REVIEW
+}
+
+model Session {
+    id                  String     @id
+    shop                String
+    state               String
+    isOnline            Boolean    @default(false)
+    scope               String?
+    expires             DateTime?
+    accessToken         String
+    userId              BigInt?
+}
+
+model shops {
+    id                  Int         @id @default(autoincrement())
+    gid                 String      @unique
+    name                String
+    email               String
+    url                 String
+    myshopifyDomain     String      @unique
+    billingAddress      String      @db.Text
+    unitSystem          String
+    weightUnit          String
+    installCount        Int
+    planId              Int?
+    planMonthlyPrice    Decimal?     @db.Decimal(6, 3)
+    planMonthlyDiscount Decimal?    @db.Decimal(6, 3)
+    planAnnualPrice     Decimal?     @db.Decimal(6, 3)
+    planAnnualDiscount  Decimal?     @db.Decimal(6, 3)
+    planType            PlanType?
+    planBillingPrice    Decimal?     @db.Decimal(6, 3)
+    trialPeriod         Int?
+    trialStartsAt       DateTime?
+    appSubscriptionId   String?
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+    deletedAt           DateTime?
+    setting             settings?
+    discounts           discounts[]
+    payments            payments[]
+    plan                plans?       @relation(fields: [planId], references: [id])
+    tickets             tickets[]
+    featureRequests     featureRequests[]
+}
+
+model settings {
+    id                  Int         @id @default(autoincrement())
+    shopId              Int         @unique
+    productPage         String?     @db.Text
+    shopVariables       String?     @db.Text
+    shop                shops       @relation(fields: [shopId], references: [id])
+}
+
+model discounts {
+    id                  Int         @id @default(autoincrement())
+    title               String
+    type                DiscountType
+    startsAt            DateTime?
+    endsAt              DateTime?
+    status              DiscountStatus  @default(ACTIVE)
+    shopId              Int
+    discountId          String      @unique
+    functionId          String
+    discountValues      String      @db.Text
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+    deletedAt           DateTime?
+    shop                shops       @relation(fields: [shopId], references: [id])
+}
+
+model plans {
+    id                  Int         @id @default(autoincrement())
+    title               String      @unique
+    monthlyPrice        Decimal     @db.Decimal(6, 3)                                  @default(0.000)
+    annualPrice         Decimal     @db.Decimal(6, 3)                                  @default(0.000)
+    monthlyFeatures     String?     @db.Text
+    annualFeatures      String?     @db.Text
+    commonFeatures      String?     @db.Text
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+    deletedAt           DateTime?
+    shops               shops[]
+    payments            payments[]
+}
+
+model payments {
+    id                  Int         @id @default(autoincrement())
+    shopId              Int
+    planId              Int
+    planType            PlanType
+    planPrice           Decimal     @db.Decimal(6, 3)                                  @default(0.000)
+    planBillingPrice    Decimal     @db.Decimal(6, 3)                                  @default(0.000)
+    chargeId            String?
+    response            String?      @db.Text
+    status              PaymentStatus                                                     @default(PENDING)
+    createdAt           DateTime    @default(now())
+    shop                shops       @relation(fields: [shopId], references: [id])
+    plan                plans       @relation(fields: [planId], references: [id])
+}
+
+model supportAgents {
+    id                  Int                @id @default(autoincrement())
+    name                String
+    phone               String?
+    email               String             @unique
+    password            String
+    role                AgentRole          @default(AGENT)
+    status              AgentStatus        @default(INACTIVE)
+    permissions         String?            @db.Text
+    createdAt           DateTime           @default(now())
+    updatedAt           DateTime?
+    tickets             tickets[]
+    replies             ticketReplies[]
+    newAssignedTickets      ticketsAssignLogs[] @relation("NewSupportAgent")
+    oldAssignedTickets      ticketsAssignLogs[] @relation("OldSupportAgent")
+    createdBy               ticketsAssignLogs[] @relation("createdById")
+}
+
+model permissions {
+    id                  Int                @id @default(autoincrement())
+    code                String             @unique
+    name                String             @unique
+    description         String?            @db.Text
+    status              ActiveStatus
+    createdAt           DateTime           @default(now())
+    updatedAt           DateTime?
+}
+
+model tickets {
+    id                  Int               @id @default(autoincrement())
+    slug                String            @unique
+    shopId              Int
+    shopEmail           String
+    supportAgentId      Int?
+    subject             String
+    status              TicketStatus      @default(PENDING)
+    createdAt           DateTime          @default(now())
+    shop                shops             @relation(fields: [shopId], references: [id])
+    supportAgent        supportAgents?     @relation(fields: [supportAgentId], references: [id])
+    ticketReplies       ticketReplies[]
+    ticketsAssignLogs   ticketsAssignLogs[]
+}
+
+model ticketReplies {
+    id                  Int                 @id @default(autoincrement())
+    ticketId            Int
+    supportAgentId      Int?
+    replyFrom           TicketReplyFrom
+    message             String              @db.Text
+    status              TicketReplyStatus   @default(PUBLISHED)
+    createdAt           DateTime            @default(now())
+    ticket              tickets             @relation(fields: [ticketId], references: [id])
+    supportAgent        supportAgents?      @relation(fields: [supportAgentId], references: [id])
+}
+
+model ticketsAssignLogs {
+    id                 Int     @id @default(autoincrement())
+    ticketId           Int
+    oldSupportAgentId  Int
+    newSupportAgentId  Int
+    createdById        Int
+    createdAt          DateTime @default(now())
+    ticket             tickets? @relation(fields: [ticketId], references: [id])
+    newSupportAgent    supportAgents? @relation("NewSupportAgent", fields: [newSupportAgentId], references: [id])
+    oldSupportAgent    supportAgents? @relation("OldSupportAgent", fields: [oldSupportAgentId], references: [id])
+    createdBy          supportAgents? @relation("createdById", fields: [createdById], references: [id])
+}
+
+model dashboardBanners {
+    id                  Int         @id @default(autoincrement())
+    serial              Int
+    title               String
+    description         String      @db.Text
+    tone                BannerTone
+    validity            DateTime
+    status              ActiveStatus
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+}
+
+model recommendedApps {
+    id                  Int         @id @default(autoincrement())
+    serial              Int
+    image               String      @db.Text
+    name                String
+    url                 String      @db.Text
+    description         String      @db.Text
+    validity            DateTime
+    status              ActiveStatus
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+}
+
+model ourArticles {
+    id                  Int         @id @default(autoincrement())
+    serial              Int
+    image               String      @db.Text
+    date                DateTime
+    categories          String      @db.Text
+    title               String
+    url                 String      @db.Text
+    status              ActiveStatus
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+}
+
+model youtubeVideos {
+    id                  Int         @id @default(autoincrement())
+    serial              Int
+    title               String
+    video_id            String
+    status              ActiveStatus
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+}
+
+model faqs {
+    id                  Int         @id @default(autoincrement())
+    serial              Int
+    title               String
+    description         String      @db.Text
+    status              ActiveStatus
+    createdAt           DateTime    @default(now())
+    updatedAt           DateTime?
+}
+
+model featureRequests {
+    id                  Int                     @id @default(autoincrement())
+    serial              Int
+    title               String?
+    description         String                  @db.Text
+    postedBy            String?
+    shopId              Int
+    status              FeatureRequestStatus    @default(PENDING)
+    votes               Json?
+    createdAt           DateTime                @default(now())
+    updatedAt           DateTime?
+    deletedAt           DateTime?
+    shop                shops       @relation(fields: [shopId], references: [id])
+}
