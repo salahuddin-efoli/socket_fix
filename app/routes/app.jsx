@@ -21,10 +21,11 @@ export const loader = async ({ request }) => {
     const graphqlQuery = `#graphql
     query shop{
         shop {
-            id
+            id,
+            myshopifyDomain
         }
     }`;
-    const response = await admin.graphql(graphqlQuery, "");
+    const response = await admin.graphql(graphqlQuery);
     const shopResponseJson = await response.json();
 
     // Get shop info from prima storage using shop GID  
@@ -92,7 +93,7 @@ export const loader = async ({ request }) => {
     }
 
     const shopInfo = await prisma.shops.findFirst({
-		select: {
+	select: {
             id: true,
             name: true,
             email: true,
@@ -112,7 +113,8 @@ export const loader = async ({ request }) => {
         select: {
             id:true
         }
-    })
+    });
+   
     return json({
         shop: shop,
         fullAccess: fullAccess,
@@ -136,8 +138,7 @@ export default function App() {
     const [socket, setSocket] = useState();
  
     useEffect(() => {
-        const socket = io("wss://socket.efoli.com/socket.io", {
-                          
+        const socket = io("wss://socket.efoli.com/socket.io", {                          
            reconnectionDelayMax: 10000
         });
         setSocket(socket);
