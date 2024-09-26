@@ -6,11 +6,11 @@ import prisma from "./db.server";
 import { createActivityLog, defaultCssStyle } from './libs/helpers';
 
 const shopify = shopifyApp({
-	apiKey: "2691eeb33f0f8f6bf874a708cb23c14d",
-	apiSecretKey: "332e4b2a0f831249f7a7fe6d0057b107",
+	apiKey: import.meta.env.VITE_SHOPIFY_API_KEY,
+	apiSecretKey: import.meta.env.VITE_SHOPIFY_API_SECRET || "",
 	apiVersion: ApiVersion.April24,
-	scopes:["read_customers","read_discounts","read_products","write_customers", "write_discounts"," write_products"],
-	appUrl: "https://socket.efoli.com",
+	scopes: import.meta.env.VITE_SCOPES?.split(","),
+	appUrl: import.meta.env.VITE_SHOPIFY_APP_URL || "",
 	authPathPrefix: "/auth",
 	sessionStorage: new PrismaSessionStorage(prisma),
 	distribution: AppDistribution.AppStore,

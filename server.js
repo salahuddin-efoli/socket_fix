@@ -4,9 +4,8 @@ import compression from "compression";
 import express from "express";
 import morgan from "morgan";
 import { Server } from "socket.io";
-// notice that the result of `remix vite:build` is "just a module"
-import * as build from "./build/server/index.js";
 
+// notice that the result of `remix vite:build` is "just a module"
 const app = express();
 
 // You need to create the HTTP server from the Express app
@@ -48,7 +47,7 @@ app.use(morgan("tiny"));
 //if project is in development phase, vite server is created
 let viteDevServer;
 
-if("dev" !== "production") {
+if(process.env.VITE_NODE_ENV == "dev") {
     viteDevServer =  await import("vite").then((vite) =>
     vite.createServer({
         server: { middlewareMode: true },
@@ -58,28 +57,24 @@ if("dev" !== "production") {
     app.use(viteDevServer.middlewares);
 }
 
-const remixHandler = createRequestHandler({
-  build: viteDevServer
-    ? () => viteDevServer.ssrLoadModule("virtual:remix/server-build")
-    :{build}
-});
+let remixHandler;
+
+if (process.env.VITE_NODE_ENV=="production") {
+    const build = await import("./build/server/index.js");
+    remixHandler = createRequestHandler({ build });
+    app.use(express.static("build/client"));
+} else {
+    remixHandler = createRequestHandler({
+        build: () => viteDevServer.ssrLoadModule("virtual:remix/server-build")
+    });
+}
 
 // handle SSR requests
 app.all("*", remixHandler);
 
-// and your app is "just a request handler"
-//app.all("*", createRequestHandler({ build }));
-
-// handle asset requests
-if ("production" === "production") {
-   app.use(express.static("build/client"));
-}
-
-const port = 7009;
-
 // instead of running listen on the Express app, do it on the HTTP server
-httpServer.listen(port, () => {
-  console.log(`Express server listening at :${port}`);
+httpServer.listen(process.env.VITE_SERVER_PORT, () => {
+  console.log('server starts at port: '+ process.env.VITE_SERVER_PORT);
 });
-
-io.listen(7008);
+//socket.io runs different port other than main server port
+io.listen(process.env.VITE_SOCKET_IO_PORT);
