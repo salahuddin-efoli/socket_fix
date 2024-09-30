@@ -350,7 +350,7 @@ export default function TicketList() {
     const currentAgent = { ...loaderData.data.currentAgent }
     const agents = [ ...loaderData.data.agents ];
     const shops = [ ...loaderData.data.shops ];
-    const initialTickets = [ ...loaderData.data.tickets ];
+    const [ initialTickets, setInitialTickets] = useState([ ...loaderData.data.tickets ]);
     const [tickets, setTickets] = useState([]);
     const [ticketDetails, setTicketDetails] = useState(null);
     const { notification, setNotification } = useContext(notificationContext);
@@ -426,10 +426,21 @@ export default function TicketList() {
     const {newTicket, setNewTicket} = useContext(newCreatedTicketContext);
     
     useEffect(() => {
-        if(newTicket){
-            setTickets([...tickets, newTicket])
+        if (newTicket) {
+            // Check if the newTicket is already in initialTickets by matching some unique property like 'id'
+            const isTicketAlreadyAdded = initialTickets.some(ticket => ticket.id === newTicket.id);
+    
+            if (!isTicketAlreadyAdded) {
+                // Add the new ticket only if it isn't already present
+                setInitialTickets((prevTickets) => [...prevTickets, newTicket]);
+            }
         }
 	}, [newTicket]);
+   
+    useEffect(() => {
+        // Update the ticket list when initialTickets changes, based on the current tab
+        setTickets(categorizedTickets(selectedTab));
+    }, [initialTickets, selectedTab]);
     
     useEffect(() => {
         if(actionData) {
@@ -608,3 +619,4 @@ export default function TicketList() {
         </Bleed>
     );
 }
+
